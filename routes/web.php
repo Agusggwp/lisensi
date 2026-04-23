@@ -23,6 +23,7 @@ Route::middleware('guest')->prefix('admin')->group(function (): void {
 
 Route::middleware(['auth', 'admin.only'])->group(function (): void {
     Route::post('/logout', [AuthController::class, 'logout'])->name('admin.logout');
+    Route::post('/logout-compat', [AuthController::class, 'logout'])->name('logout');
 
     // Keep /dashboard for backward compatibility.
     Route::get('/dashboard', DashboardController::class)->name('admin.dashboard');
