@@ -13,6 +13,17 @@ File di folder ini bisa langsung dipindah ke project Laravel client.
 
 Salin isi `.env.client.example` ke `.env` client.
 
+Template `.env.client.example` sudah full setup untuk environment client (APP, DB, SESSION, CACHE, MAIL, dan LICENSE).
+
+Wajib disesuaikan sebelum dipakai:
+
+- `APP_URL`
+- `DB_*`
+- `MAIL_*`
+- `CLIENT_LICENSE_KEY`
+- `CLIENT_LICENSE_SERVER_URL`
+- `LICENSE_SERVER_HMAC_SECRET`
+
 ## 3. Daftarkan alias middleware
 
 Lihat contoh di `snippets/bootstrap-app.php` lalu tambahkan ke `bootstrap/app.php` project client.

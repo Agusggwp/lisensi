@@ -25,13 +25,14 @@ class EnsureValidLicense
         $ipAddress = $request->ip();
         $timestamp = time();
         $secret = (string) config('services.license_server.hmac_secret');
+        $isIpLockEnabled = filter_var((string) env('CLIENT_LICENSE_IP_LOCK', 'false'), FILTER_VALIDATE_BOOL);
+        $signatureIpPart = $isIpLockEnabled ? (string) $ipAddress : '';
 
-        $signatureBase = implode('|', [$licenseKey, $domain, (string) $ipAddress, (string) $timestamp]);
+        $signatureBase = implode('|', [$licenseKey, $domain, $signatureIpPart, (string) $timestamp]);
         $signature = hash_hmac('sha256', $signatureBase, $secret);
 
         $cacheKey = 'license-check:' . sha1($domain . '|' . $licenseKey);
         $cacheSeconds = (int) config('services.license_server.check_cache_seconds', 600);
-        $isIpLockEnabled = filter_var((string) env('CLIENT_LICENSE_IP_LOCK', 'false'), FILTER_VALIDATE_BOOL);
 
         try {
             $response = Http::timeout(8)
@@ -39,7 +40,7 @@ class EnsureValidLicense
                 ->post(rtrim((string) env('CLIENT_LICENSE_SERVER_URL'), '/') . env('CLIENT_LICENSE_CHECK_PATH', '/api/v1/licenses/validate'), [
                     'license_key' => $licenseKey,
                     'domain' => $domain,
-                    'ip_address' => $isIpLockEnabled ? $ipAddress : null,
+                    'ip_address' => $isIpLockEnabled ? $ipAddress : '',
                     'timestamp' => $timestamp,
                     'signature' => $signature,
                 ]);

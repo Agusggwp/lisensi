@@ -3,10 +3,7 @@
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('client.license')->group(function (): void {
-    Route::get('/', function () {
-        return view('welcome');
-    });
-
+    
     // Tambahkan route website utama Anda di sini
 });
 
