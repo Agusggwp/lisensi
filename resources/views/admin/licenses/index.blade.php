@@ -2,6 +2,18 @@
 
 @section('content')
     <div class="panel">
+        <h2>Fitur Manajemen License</h2>
+        <p class="muted">Halaman ini untuk membuat, memperbarui, suspend/aktifkan, perpanjang, dan memantau aktivitas validasi license.</p>
+        <ul>
+            <li><strong>Generate License:</strong> membuat license key baru untuk client aktif.</li>
+            <li><strong>Edit:</strong> ubah nama paket, domain, IP lock, status, dan masa aktif.</li>
+            <li><strong>Suspend/Active:</strong> blokir sementara atau aktifkan kembali license.</li>
+            <li><strong>Perpanjang:</strong> tambah masa aktif license berdasarkan hari.</li>
+            <li><strong>Riwayat Aktivasi:</strong> audit domain, IP, hasil valid/invalid, dan alasan kegagalan.</li>
+        </ul>
+    </div>
+
+    <div class="panel">
         <h2>Manajemen License</h2>
         <form method="POST" action="{{ route('admin.licenses.store') }}" class="grid grid-2">
             @csrf
@@ -41,6 +53,33 @@
                     </td>
                     <td>
                         <div class="actions">
+                            <details>
+                                <summary class="btn" role="button">Edit</summary>
+                                <form method="POST" action="{{ route('admin.licenses.update', $license) }}" class="grid" style="min-width: 320px; margin-top: 8px;">
+                                    @csrf
+                                    @method('PUT')
+                                    <input name="name" value="{{ $license->name }}" required>
+                                    <input name="domain" value="{{ $license->domain }}" required>
+                                    <input name="ip_lock" value="{{ $license->ip_lock }}" placeholder="IP lock (optional)">
+                                    <select name="status" required>
+                                        <option value="active" {{ $license->status === 'active' ? 'selected' : '' }}>active</option>
+                                        <option value="expired" {{ $license->status === 'expired' ? 'selected' : '' }}>expired</option>
+                                        <option value="suspended" {{ $license->status === 'suspended' ? 'selected' : '' }}>suspended</option>
+                                    </select>
+                                    <input type="datetime-local" name="expires_at" value="{{ optional($license->expires_at)->format('Y-m-d\\TH:i') }}" required>
+                                    <label>
+                                        <input type="hidden" name="is_domain_locked" value="0">
+                                        <input type="checkbox" name="is_domain_locked" value="1" {{ $license->is_domain_locked ? 'checked' : '' }}>
+                                        Domain lock
+                                    </label>
+                                    <label>
+                                        <input type="hidden" name="is_ip_locked" value="0">
+                                        <input type="checkbox" name="is_ip_locked" value="1" {{ $license->is_ip_locked ? 'checked' : '' }}>
+                                        IP lock
+                                    </label>
+                                    <button class="btn btn-primary" type="submit">Simpan Perubahan</button>
+                                </form>
+                            </details>
                             <form method="POST" action="{{ route('admin.licenses.toggle-status', $license) }}">@csrf<button class="btn btn-warning" type="submit">Suspend/Active</button></form>
                             <form method="POST" action="{{ route('admin.licenses.extend', $license) }}">@csrf<input type="number" name="duration_days" min="1" placeholder="Hari" style="width:90px"><button class="btn" type="submit">Perpanjang</button></form>
                             <form method="POST" action="{{ route('admin.licenses.destroy', $license) }}">@csrf @method('DELETE')<button class="btn btn-danger" type="submit">Hapus</button></form>

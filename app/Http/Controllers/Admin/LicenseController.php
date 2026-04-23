@@ -74,7 +74,7 @@ class LicenseController extends Controller
 
         $license->update([
             ...$validated,
-            'is_domain_locked' => $request->boolean('is_domain_locked', true),
+            'is_domain_locked' => $request->boolean('is_domain_locked'),
             'is_ip_locked' => $request->boolean('is_ip_locked', false),
         ]);
 
