@@ -7,6 +7,7 @@ use App\Models\Client;
 use App\Models\License;
 use App\Models\LicenseActivationLog;
 use App\Services\LicenseService;
+use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View as ViewResponse;
@@ -108,12 +109,18 @@ class LicenseController extends Controller
             'duration_days' => ['required', 'integer', 'min:1', 'max:3650'],
         ]);
 
-        $baseDate = $license->expires_at && $license->expires_at->isFuture()
+        $durationDays = (int) $data['duration_days'];
+
+        $currentExpiry = $license->expires_at instanceof Carbon
             ? $license->expires_at
+            : ($license->expires_at ? Carbon::parse($license->expires_at) : null);
+
+        $baseDate = $currentExpiry && $currentExpiry->isFuture()
+            ? $currentExpiry
             : now();
 
         $license->update([
-            'expires_at' => $baseDate->copy()->addDays($data['duration_days']),
+            'expires_at' => $baseDate->copy()->addDays($durationDays),
             'status' => License::STATUS_ACTIVE,
         ]);
 

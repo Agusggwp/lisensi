@@ -36,6 +36,15 @@
             flex-wrap: wrap;
         }
         .brand { font-size: 1.2rem; font-weight: 700; letter-spacing: 0.02em; }
+        .clock-wrap {
+            background: #fcfbf8;
+            border: 1px solid #e6e0d6;
+            border-radius: 12px;
+            padding: 8px 12px;
+            min-width: 220px;
+        }
+        .clock-wrap .day { font-size: .82rem; color: var(--muted); margin-bottom: 2px; }
+        .clock-wrap .time { font-size: 1.05rem; font-weight: 700; letter-spacing: .02em; }
         .nav { display: flex; gap: 8px; flex-wrap: wrap; }
         .nav a, .btn {
             border: none;
@@ -118,6 +127,10 @@
 <div class="shell">
     <div class="topbar">
         <div class="brand">License Server</div>
+        <div class="clock-wrap" aria-live="polite">
+            <div class="day" id="mk-day">-</div>
+            <div class="time" id="mk-time">-</div>
+        </div>
         <nav class="nav">
             <a href="{{ route('admin.dashboard') }}" class="{{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">Dashboard</a>
             <a href="{{ route('admin.clients.index') }}" class="{{ request()->routeIs('admin.clients.*') ? 'active' : '' }}">Client</a>
@@ -135,5 +148,37 @@
 
     @yield('content')
 </div>
+<script>
+    (function () {
+        const dayEl = document.getElementById('mk-day');
+        const timeEl = document.getElementById('mk-time');
+        const tz = 'Asia/Makassar';
+
+        function tick() {
+            const now = new Date();
+            const day = new Intl.DateTimeFormat('id-ID', {
+                weekday: 'long',
+                day: '2-digit',
+                month: 'long',
+                year: 'numeric',
+                timeZone: tz,
+            }).format(now);
+
+            const time = new Intl.DateTimeFormat('id-ID', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                timeZone: tz,
+                hour12: false,
+            }).format(now);
+
+            dayEl.textContent = day + ' (WITA)';
+            timeEl.textContent = time;
+        }
+
+        tick();
+        setInterval(tick, 1000);
+    })();
+</script>
 </body>
 </html>
