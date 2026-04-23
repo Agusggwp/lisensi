@@ -16,7 +16,7 @@ return new class extends Migration
             $table->foreignId('client_id')->constrained()->cascadeOnDelete();
             $table->string('name');
             $table->string('license_key')->unique();
-            $table->string('encrypted_token')->nullable();
+            $table->text('encrypted_token')->nullable();
             $table->string('domain')->index();
             $table->string('ip_lock')->nullable();
             $table->enum('status', ['active', 'expired', 'suspended'])->default('active')->index();
