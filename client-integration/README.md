@@ -27,10 +27,12 @@ Wajib disesuaikan sebelum dipakai:
 ## 3. Daftarkan alias middleware
 
 Lihat contoh di `snippets/bootstrap-app.php` lalu tambahkan ke `bootstrap/app.php` project client.
+Contoh tersebut akan langsung memaksa validasi lisensi ke seluruh route web (global).
 
 ## 4. Pasang middleware pada route website client
 
-Lihat contoh di `snippets/routes-web.php` lalu sesuaikan di `routes/web.php` project client.
+Karena middleware sudah dipasang global, route website utama tidak perlu dibungkus manual.
+Lihat contoh minimal di `snippets/routes-web.php`.
 
 ## 5. Clear cache config
 
@@ -38,7 +40,36 @@ Lihat contoh di `snippets/routes-web.php` lalu sesuaikan di `routes/web.php` pro
 php artisan optimize:clear
 ```
 
+## 5.1 Wajib verifikasi middleware aktif
+
+Pastikan middleware lisensi benar-benar aktif global di web dengan cara:
+
+1. Cek `bootstrap/app.php` sudah ada:
+	- alias `client.license`
+	- `$middleware->web(append: [\App\Http\Middleware\EnsureValidLicense::class]);`
+2. Jalankan:
+
+```bash
+php artisan optimize:clear
+php artisan route:list
+```
+
+3. Test cepat:
+	- Kosongkan `CLIENT_LICENSE_KEY` di `.env`
+	- Akses website client
+	- Harus langsung tampil halaman `License Expired`
+
 ## 6. Test
 
 - Saat license valid -> website normal.
 - Saat license expired/suspended/tidak valid -> otomatis blokir ke halaman expired/maintenance.
+
+Catatan strict mode:
+
+- `CLIENT_LICENSE_ALLOW_STALE_CACHE=false` (recommended): bila license server down, website tetap diblokir.
+- `CLIENT_LICENSE_ALLOW_STALE_CACHE=true`: boleh jalan sementara pakai cache valid lama.
+
+Rekomendasi mode paling ketat:
+
+- `CLIENT_LICENSE_CACHE_SECONDS=0`
+- `CLIENT_LICENSE_ALLOW_STALE_CACHE=false`

@@ -13,6 +13,10 @@ class EnsureValidLicense
 {
     public function handle(Request $request, Closure $next): Response
     {
+        if ($this->shouldBypass($request)) {
+            return $next($request);
+        }
+
         $licenseKey = env('CLIENT_LICENSE_KEY');
 
         if (! $licenseKey) {
@@ -32,7 +36,8 @@ class EnsureValidLicense
         $signature = hash_hmac('sha256', $signatureBase, $secret);
 
         $cacheKey = 'license-check:' . sha1($domain . '|' . $licenseKey);
-        $cacheSeconds = (int) env('CLIENT_LICENSE_CACHE_SECONDS', 600);
+        $cacheSeconds = (int) env('CLIENT_LICENSE_CACHE_SECONDS', 0);
+        $allowStaleCache = filter_var((string) env('CLIENT_LICENSE_ALLOW_STALE_CACHE', 'false'), FILTER_VALIDATE_BOOL);
 
         try {
             $response = Http::timeout(8)
@@ -55,8 +60,14 @@ class EnsureValidLicense
                 return $this->blockByMode($request, (string) ($json['message'] ?? 'License invalid.'));
             }
 
-            Cache::put($cacheKey, $json, now()->addSeconds($cacheSeconds));
+            if ($cacheSeconds > 0) {
+                Cache::put($cacheKey, $json, now()->addSeconds($cacheSeconds));
+            }
         } catch (ConnectionException) {
+            if (! $allowStaleCache) {
+                return $this->blockByMode($request, 'Tidak dapat menghubungi license server.');
+            }
+
             $cached = Cache::get($cacheKey);
 
             if (! $cached || ! ($cached['valid'] ?? false)) {
@@ -83,5 +94,18 @@ class EnsureValidLicense
         }
 
         return response()->view('license.expired', ['message' => $message], 423);
+    }
+
+    private function shouldBypass(Request $request): bool
+    {
+        if ($request->is('license-expired') || $request->is('maintenance-license')) {
+            return true;
+        }
+
+        if ($request->is('up') || $request->is('api/health')) {
+            return true;
+        }
+
+        return false;
     }
 }

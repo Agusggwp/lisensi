@@ -8,5 +8,10 @@ di dalam chain Application::configure(...):
     $middleware->alias([
         'client.license' => \App\Http\Middleware\EnsureValidLicense::class,
     ]);
+
+    // Wajibkan validasi lisensi ke seluruh route web
+    $middleware->web(append: [
+        \App\Http\Middleware\EnsureValidLicense::class,
+    ]);
 })
 */
