@@ -6,7 +6,7 @@ use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\LicenseController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', fn () => redirect()->route('client.home'));
+Route::get('/', fn () => redirect()->route('admin.login'));
 
 Route::middleware('client.license')->group(function (): void {
     Route::view('/client', 'client.home')->name('client.home');
