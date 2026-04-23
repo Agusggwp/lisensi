@@ -1,0 +1,7 @@
+app/Http/Middleware/EnsureValidLicense.php
+resources/views/license/expired.blade.php
+resources/views/license/maintenance.blade.php
+config/license_client.php (opsional)
+.env.client.example (salin variabelnya ke .env client)
+snippets/bootstrap-app.php (contoh edit bootstrap/app.php)
+snippets/routes-web.php (contoh edit routes/web.php)
