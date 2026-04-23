@@ -2,185 +2,107 @@
 
 namespace App\Services;
 
-use App\Models\Client;
-use App\Models\LicenseCheck;
+use App\Models\License;
+use App\Models\LicenseActivationLog;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Str;
-use Exception;
 
 class LicenseService
 {
-    /**
-     * Generate unique license key
-     */
     public function generateLicenseKey(): string
     {
         do {
-            $key = 'LIC-' . strtoupper(Str::random(12)) . '-' . now()->format('Ym');
-        } while (Client::where('license_key', $key)->exists());
+            $key = 'LIC-' . strtoupper(Str::random(8)) . '-' . strtoupper(Str::random(8));
+        } while (License::query()->where('license_key', $key)->exists());
 
         return $key;
     }
 
-    /**
-     * Check license validity
-     * 
-     * @param string $licenseKey
-     * @param string $domain
-     * @param string|null $ipAddress
-     * @param string|null $userAgent
-     * @return array
-     */
-    public function checkLicense(
-        string $licenseKey,
-        string $domain,
-        ?string $ipAddress = null,
-        ?string $userAgent = null
-    ): array
+    public function generateEncryptedToken(License $license): string
     {
-        $response = [
-            'status' => 'invalid',
-            'message' => 'Lisensi tidak ditemukan.',
-            'valid' => false
+        $payload = [
+            'license_key' => $license->license_key,
+            'domain' => $license->domain,
+            'expires_at' => optional($license->expires_at)?->toIso8601String(),
+            'status' => $license->status,
         ];
 
-        try {
-            // Find client by license key
-            $client = Client::where('license_key', $licenseKey)->first();
+        return Crypt::encryptString(json_encode($payload, JSON_THROW_ON_ERROR));
+    }
 
-            if (!$client) {
-                LicenseCheck::create([
-                    'client_id' => null,
-                    'license_key' => $licenseKey,
-                    'domain' => $domain,
-                    'status' => 'invalid',
-                    'ip_address' => $ipAddress,
-                    'user_agent' => $userAgent,
-                ]);
+    public function validate(string $licenseKey, string $domain, ?string $ipAddress = null): array
+    {
+        $license = License::query()->where('license_key', $licenseKey)->first();
 
-                return $response;
-            }
+        if (! $license) {
+            return $this->response(false, 'License key tidak ditemukan', null);
+        }
 
-            // Check domain validation
-            if ($client->domain !== $domain) {
-                $response['message'] = 'Domain tidak cocok dengan lisensi yang terdaftar.';
+        if ($license->status === License::STATUS_SUSPENDED) {
+            return $this->logAndRespond($license, false, 'License suspended', $domain, $ipAddress);
+        }
 
-                LicenseCheck::create([
-                    'client_id' => $client->id,
-                    'license_key' => $licenseKey,
-                    'domain' => $domain,
-                    'status' => 'invalid',
-                    'ip_address' => $ipAddress,
-                    'user_agent' => $userAgent,
-                ]);
+        if ($license->isExpired() || $license->status === License::STATUS_EXPIRED) {
+            return $this->logAndRespond($license, false, 'License expired', $domain, $ipAddress);
+        }
 
-                return $response;
-            }
+        if ($license->is_domain_locked && strcasecmp($license->domain, $domain) !== 0) {
+            return $this->logAndRespond($license, false, 'Domain mismatch', $domain, $ipAddress);
+        }
 
-            // Check if suspended
-            if ($client->isSuspended()) {
-                $response = [
-                    'status' => 'suspended',
-                    'message' => 'Lisensi telah dibekukan. Silakan hubungi administrator.',
-                    'valid' => false
-                ];
+        if ($license->is_ip_locked && $license->ip_lock && $ipAddress && $license->ip_lock !== $ipAddress) {
+            return $this->logAndRespond($license, false, 'IP mismatch', $domain, $ipAddress);
+        }
 
-                LicenseCheck::create([
-                    'client_id' => $client->id,
-                    'license_key' => $licenseKey,
-                    'domain' => $domain,
-                    'status' => 'suspended',
-                    'ip_address' => $ipAddress,
-                    'user_agent' => $userAgent,
-                ]);
+        $license->forceFill([
+            'last_validated_at' => now(),
+        ])->save();
 
-                return $response;
-            }
+        return $this->logAndRespond($license, true, 'License valid', $domain, $ipAddress);
+    }
 
-            // Check if expired
-            if ($client->isExpired()) {
-                $response = [
-                    'status' => 'expired',
-                    'message' => 'Lisensi sudah habis, silakan lakukan pembayaran untuk memperpanjang.',
-                    'client_name' => $client->name,
-                    'client_email' => $client->email,
-                    'expired_at' => $client->expired_at->format('Y-m-d'),
-                    'valid' => false
-                ];
-
-                $client->update(['status' => 'expired']);
-
-                LicenseCheck::create([
-                    'client_id' => $client->id,
-                    'license_key' => $licenseKey,
-                    'domain' => $domain,
-                    'status' => 'expired',
-                    'ip_address' => $ipAddress,
-                    'user_agent' => $userAgent,
-                ]);
-
-                return $response;
-            }
-
-            // License is valid and active
-            $response = [
-                'status' => 'active',
-                'message' => 'Lisensi valid dan masih aktif.',
-                'client_name' => $client->name,
-                'client_email' => $client->email,
-                'expired_at' => $client->expired_at->format('Y-m-d'),
-                'days_remaining' => $client->daysUntilExpiry(),
-                'valid' => true
-            ];
-
-            LicenseCheck::create([
-                'client_id' => $client->id,
-                'license_key' => $licenseKey,
-                'domain' => $domain,
-                'status' => 'active',
-                'ip_address' => $ipAddress,
-                'user_agent' => $userAgent,
+    public function syncExpiredStatuses(): void
+    {
+        License::query()
+            ->where('status', License::STATUS_ACTIVE)
+            ->whereNotNull('expires_at')
+            ->where('expires_at', '<', now())
+            ->update([
+                'status' => License::STATUS_EXPIRED,
             ]);
-
-            return $response;
-
-        } catch (Exception $e) {
-            return [
-                'status' => 'error',
-                'message' => 'Terjadi kesalahan saat mengecek lisensi.',
-                'valid' => false
-            ];
-        }
     }
 
-    /**
-     * Get license info
-     */
-    public function getLicenseInfo(string $licenseKey): ?array
+    private function response(bool $valid, string $message, ?License $license): array
     {
-        $client = Client::where('license_key', $licenseKey)->first();
-
-        if (!$client) {
-            return null;
-        }
-
         return [
-            'name' => $client->name,
-            'email' => $client->email,
-            'domain' => $client->domain,
-            'status' => $client->status,
-            'expired_at' => $client->expired_at->format('Y-m-d'),
-            'days_remaining' => $client->daysUntilExpiry(),
-            'created_at' => $client->created_at->format('Y-m-d H:i:s'),
+            'valid' => $valid,
+            'message' => $message,
+            'status' => $license?->status,
+            'expires_at' => optional($license?->expires_at)?->toIso8601String(),
+            'license' => $license ? [
+                'id' => $license->id,
+                'name' => $license->name,
+                'domain' => $license->domain,
+                'encrypted_token' => $license->encrypted_token,
+            ] : null,
         ];
     }
 
-    /**
-     * Auto expire licenses
-     */
-    public function autoExpireLicenses(): void
+    private function logAndRespond(License $license, bool $isValid, string $reason, string $domain, ?string $ipAddress): array
     {
-        Client::active()
-            ->where('expired_at', '<=', now())
-            ->update(['status' => 'expired']);
+        LicenseActivationLog::query()->create([
+            'license_id' => $license->id,
+            'domain' => $domain,
+            'ip_address' => $ipAddress,
+            'user_agent' => request()->userAgent(),
+            'is_valid' => $isValid,
+            'reason' => $reason,
+            'payload' => [
+                'license_key' => $license->license_key,
+                'status' => $license->status,
+            ],
+        ]);
+
+        return $this->response($isValid, $reason, $license);
     }
 }
